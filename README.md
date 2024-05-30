@@ -13,4 +13,4 @@
 
 **준혁**
 
-![무한의대검](
+![무한의대검](https://github.com/157715777/AIKJH/blob/main/%EB%AC%B4%ED%95%9C.jpg)
