@@ -1,0 +1,146 @@
+# LightGBM 모델 학습 및 예측
+
+## 사용된 라이브러리
+
+* **데이터 처리를 위한 라이브러리 임포트**
+
+import numpy as np
+
+import pandas as pd
+
+* **LightGBM을 사용하여 모델 학습 및 예측**
+
+import lightgbm as lgb
+
+* **DuckDB를 사용하여 대용량 데이터베이스 쿼리 처리**
+
+import duckdb
+
+---
+
+## DuckDB를 사용하여 학습 데이터 로드 및 균형 조정
+
+train_path = 'train.csv'
+
+* **DuckDB 연결 생성**
+
+con = duckdb.connect()
+
+* **쿼리를 통해 데이터 로드 및 균형 조정**
+
+df = con.query(f"""
+    (SELECT * FROM read_csv_auto('{train_path}') WHERE Click = 0 ORDER BY random() LIMIT 2500000)
+    UNION ALL
+    (SELECT * FROM read_csv_auto('{train_path}') WHERE Click = 1 ORDER BY random() LIMIT 2500000)
+""").df()
+
+* **DuckDB 연결 종료**
+
+con.close()
+
+---
+
+## 학습 데이터 전처리
+
+* **'ID' 열 제거**
+
+df = df.drop('ID', axis=1)
+
+* **특정 열의 결측값을 0으로 채우기**
+
+columns_with_zero_fill = ['F04', 'F11', 'F18', 'F19', 'F24', 'F27', 'F29', 'F32', 'F33', 'F36', 'F38']
+df[columns_with_zero_fill] = df[columns_with_zero_fill].fillna(0)
+
+* **나머지 결측값을 'NAN'으로 채우기**
+
+df = df.fillna('NAN')
+
+* **float64 타입 열 선택**
+
+float_columns = df.select_dtypes(include=['float64']).columns
+
+* **선택된 열을 int64 타입으로 변환**
+
+df[float_columns] = df[float_columns].astype('int64')
+
+* **object 타입 열 선택**
+
+object_columns = df.select_dtypes(include=['object']).columns
+
+* **선택된 열을 category 타입으로 변환**
+
+df[object_columns] = df[object_columns].astype('category')
+
+* **데이터프레임 정보 출력**
+
+df.info()
+
+---
+
+## LightGBM 모델 학습
+
+model = lgb.LGBMClassifier(objective='binary')
+
+model.fit(df.drop('Click', axis=1), df['Click'], eval_metric='AUC')
+
+---
+
+## 테스트 데이터를 로드하고 전처리하는 함수 정의
+
+def load_data():
+
+* **테스트 데이터 로드**
+
+df = pd.read_csv('test.csv')
+
+* **'ID' 열 제거**
+
+df = df.drop('ID', axis=1)
+
+* **특정 열의 결측값을 0으로 채우기**
+
+columns_with_zero_fill = ['F04', 'F11', 'F18', 'F19', 'F24', 'F27', 'F29', 'F32', 'F33', 'F36', 'F38']
+
+df[columns_with_zero_fill] = df[columns_with_zero_fill].fillna(0)
+
+* **나머지 결측값을 'NAN'으로 채우기**
+
+df = df.fillna('NAN')
+
+* **float64 타입 열 선택**
+
+float_columns = df.select_dtypes(include=['float64']).columns
+
+* **선택된 열을 int64 타입으로 변환**
+
+df[float_columns] = df[float_columns].astype('int64')
+
+* **object 타입 열 선택**
+
+object_columns = df.select_dtypes(include(['object']).columns)
+
+* **선택된 열을 category 타입으로 변환**
+
+df[object_columns] = df[object_columns].astype('category')
+
+return df
+
+* **테스트 데이터 로드 및 전처리**
+
+test_df = load_data()
+
+---
+
+## 예측 수행
+
+pred = model.predict_proba(test_df)
+
+---
+
+## 제출 파일 준비
+
+sample_submission = pd.read_csv('sample_submission.csv')
+
+sample_submission['Click'] = pred[:, 1]
+
+sample_submission.to_csv('sample_submission_lgbm.csv', index=False)
